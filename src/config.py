@@ -13,16 +13,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 PDF_DIR = os.path.join(DATA_DIR, 'pdf')
 CSV_DIR = os.path.join(DATA_DIR, 'csv')
+JSON_DIR = os.path.join(DATA_DIR, 'json')  # Added JSON_DIR
+TXT_DIR = os.path.join(DATA_DIR, 'txt')    # Added TXT_DIR
 DB_PATH = os.path.join(BASE_DIR, 'database', 'kb.db')
 BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
 
 # Ensure all directories exist
-for directory in [PDF_DIR, CSV_DIR, os.path.dirname(DB_PATH), BACKUP_DIR]:
+for directory in [PDF_DIR, CSV_DIR, JSON_DIR, TXT_DIR, os.path.dirname(DB_PATH), BACKUP_DIR]:
     os.makedirs(directory, exist_ok=True)
 
 # LLM settings
 OLLAMA_BASE_URL = "http://localhost:11434"
 DEFAULT_MODEL = "deepseek-coder:reasoning"  # Default model for general tasks
+REASONING_MODEL = "deepseek-coder:reasoning"  # Model optimized for reasoning tasks
+STRATEGY_MODEL = "deepseek-coder:reasoning"  # Model optimized for strategy generation
 FALLBACK_MODEL = "llama3"  # Fallback model if primary not available
 
 # Embedding model settings
