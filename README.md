@@ -11,23 +11,12 @@ The system analyzes your business's strategic assessment data and generates tail
 ## Features
 
 - **Self-Hosted & Offline**: All processing happens locally - no data leaves your system
-- **Intelligent Document Processing**: Ingests PDF, CSV, JSON, and TXT files
+- **Intelligent Document Processing**: Ingests PDF, CSV, and other business strategy documents
 - **Semantic Search**: Find relevant information quickly across your business data
 - **Strategic Analysis**: Generate comprehensive business strategy recommendations
 - **Customizable Outputs**: Export recommendations as formatted PDF documents
-- **Interactive Interface**: User-friendly command-line interface with rich formatting
+- **Interactive Interface**: User-friendly command-line and web interfaces
 
-## Architecture
-
-The QmiracTM Knowledge Base system is built on a modular architecture:
-
-Document Loader → Database  ←  User Interface
-      ↓               ↓             ↓
-  Embedding   →   Retriever  ←  RAG System
-  Generator          ↓             ↓
-                LLM Manager  →  PDF Generator
-
-                
 ## Requirements
 
 - Python 3.8 or higher
@@ -78,17 +67,33 @@ ollama pull llama3
 
 ### Running the Application
 
+There are multiple ways to run the application:
+
+1. **Command Line Interface**:
+
 ```bash
 python app.py
+```
+
+2. **Demo Mode**:
+
+```bash
+python app.py --demo
+```
+
+3. **Web Interface**:
+
+```bash
+python app.py --web
 ```
 
 ### Command Line Options
 
 - `--db-path PATH`: Specify a custom database path
 - `--reload`: Force reload documents even if already in database
-- `--backup`: Create a database backup before starting
 - `--optimize`: Optimize database before starting
 - `--demo`: Run in demo mode with sample queries
+- `--web`: Start the web interface
 
 ### Preparing Your Data
 
@@ -96,21 +101,8 @@ Place your business documents in the appropriate directories:
 
 - `data/pdf/`: PDF documents (strategy assessments, reports)
 - `data/csv/`: CSV data tables (metric data)
-- `data/json/`: JSON data files
-- `data/txt/`: Text documents
 
-### Available Commands
-
-Once the application is running, you can use the following commands:
-
-- `help`: Display help information
-- `docs`: List all loaded documents
-- `search [term]`: Search for specific information
-- `strategy`: Generate a comprehensive strategy recommendation
-- `feedback`: View recent user feedback
-- `exit`: Quit the application
-
-## Generating Strategy Recommendations
+### Generating Strategy Recommendations
 
 The system will prompt you for the following inputs:
 
@@ -122,15 +114,13 @@ The system will prompt you for the following inputs:
 
 Based on these inputs and your loaded business data, the system will generate a comprehensive strategy recommendation.
 
-## Demo Mode
+## Integrating with FlutterFlow
 
-To see the system in action with sample queries and data, run:
+This system is designed to be integrated with FlutterFlow applications. The core RAG functionality can be exposed through:
 
-```bash
-python app.py --demo
-```
-
-This will walk you through example queries and strategy generation scenarios.
+1. **REST API**: The web interface can be extended to provide API endpoints for FlutterFlow
+2. **Direct Database Integration**: The SQLite database can be shared with FlutterFlow
+3. **Code Export**: Core functionality can be exported as modules for integration
 
 ## Troubleshooting
 
@@ -142,5 +132,3 @@ This will walk you through example queries and strategy generation scenarios.
 ## License
 
 Proprietary - QmiracTM Business Intelligence Systems
-
-Copyright © 2025 Your Company

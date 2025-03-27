@@ -6,7 +6,6 @@ This module contains all configuration settings for the knowledge base,
 including file paths, model settings, and performance parameters.
 """
 import os
-import platform
 from pathlib import Path
 
 # Project base directories
@@ -14,20 +13,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 PDF_DIR = os.path.join(DATA_DIR, 'pdf')
 CSV_DIR = os.path.join(DATA_DIR, 'csv')
-JSON_DIR = os.path.join(DATA_DIR, 'json')
-TXT_DIR = os.path.join(DATA_DIR, 'txt')
 DB_PATH = os.path.join(BASE_DIR, 'database', 'kb.db')
 BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
 
 # Ensure all directories exist
-for directory in [PDF_DIR, CSV_DIR, JSON_DIR, TXT_DIR, os.path.dirname(DB_PATH), BACKUP_DIR]:
+for directory in [PDF_DIR, CSV_DIR, os.path.dirname(DB_PATH), BACKUP_DIR]:
     os.makedirs(directory, exist_ok=True)
 
 # LLM settings
 OLLAMA_BASE_URL = "http://localhost:11434"
 DEFAULT_MODEL = "deepseek-coder:reasoning"  # Default model for general tasks
-REASONING_MODEL = "deepseek-coder:reasoning"  # Model for complex reasoning tasks
-STRATEGY_MODEL = "deepseek-coder:reasoning"  # Model for strategy generation
 FALLBACK_MODEL = "llama3"  # Fallback model if primary not available
 
 # Embedding model settings
@@ -66,18 +61,14 @@ BUSINESS_DOMAINS = [
     "operations", "sales", "marketing", "hr", "risk"
 ]
 
-# System settings
-LOGGING_ENABLED = True
-DEBUG_MODE = os.environ.get("QMIRAC_DEBUG", "").lower() in ["true", "1", "yes"]
-SYSTEM_INFO = {
-    "os": platform.system(),
-    "python_version": platform.python_version(),
-    "architecture": platform.architecture()[0]
+# Document types
+DOCUMENT_TYPES = {
+    "strategy": "Strategic assessments and plans",
+    "execution": "Execution plans and operational data",
+    "market_assessment": "Market analysis and target segments",
+    "competitive": "Competitive landscape analysis",
+    "financial": "Financial data and performance metrics",
+    "swot": "SWOT analysis",
+    "risk": "Risk assessments and mitigation",
+    "data_table": "Metric data tables"
 }
-
-# Try to use multiple CPU cores if available
-try:
-    import multiprocessing
-    CPU_COUNT = multiprocessing.cpu_count()
-except (ImportError, NotImplementedError):
-    CPU_COUNT = 2  # Default to 2 if we can't determine

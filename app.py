@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-QmiracTM AI-Driven Knowledge Base Demo
+QmiracTM AI-Driven Knowledge Base
 
-A polished demo for the Retrieval-Augmented Generation (RAG) system 
-for offline business strategy development.
+A polished Retrieval-Augmented Generation (RAG) system for offline business strategy development.
 """
 import os
 import sys
@@ -19,24 +18,18 @@ from rich.progress import Progress
 from rich.prompt import Prompt, Confirm
 import shutil
 
-# Add src directory to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 # Import from package
-from src import (
-    Database, 
-    DocumentLoader, 
-    EmbeddingGenerator, 
-    Retriever, 
-    LLMManager, 
-    RAGSystem,
-    create_knowledge_base
-)
-from src.config import (
-    PDF_DIR, CSV_DIR, JSON_DIR, TXT_DIR, DB_PATH, BACKUP_DIR,
-    RISK_TOLERANCE_LEVELS, BUSINESS_DOMAINS
-)
+from src.db import Database
+from src.document_loader import DocumentLoader
+from src.embeddings import EmbeddingGenerator
+from src.retriever import Retriever
+from src.llm import LLMManager
+from src.rag import RAGSystem
 from src.output_generator import StrategyOutputGenerator
+from src.config import (
+    PDF_DIR, CSV_DIR, DB_PATH, 
+    RISK_TOLERANCE_LEVELS
+)
 
 # Initialize rich console for better UI
 console = Console()
@@ -57,11 +50,6 @@ def setup_argparse():
         help="Force reload documents even if already in database"
     )
     parser.add_argument(
-        "--backup", 
-        action="store_true",
-        help="Create a database backup before starting"
-    )
-    parser.add_argument(
         "--optimize", 
         action="store_true",
         help="Optimize database before starting"
@@ -70,6 +58,11 @@ def setup_argparse():
         "--demo", 
         action="store_true",
         help="Run in demo mode with sample queries"
+    )
+    parser.add_argument(
+        "--web", 
+        action="store_true",
+        help="Start the web interface"
     )
     return parser.parse_args()
 
@@ -95,115 +88,17 @@ def display_welcome_banner():
         expand=False
     ))
 
-def main():
-    """Main application entry point."""
-    # Parse command line arguments
-    args = setup_argparse()
+def create_knowledge_base(db_path=DB_PATH):
+    """Create and return a complete knowledge base system."""
+    # Initialize components
+    db = Database(db_path)
+    embedding_generator = EmbeddingGenerator()
+    llm_manager = LLMManager()
+    document_loader = DocumentLoader(db)
+    retriever = Retriever(db, embedding_generator)
+    rag_system = RAGSystem(db, retriever, llm_manager)
     
-    # Register signal handler for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    
-    # Display welcome message
-    display_welcome_banner()
-    
-    try:
-        with Progress() as progress:
-            init_task = progress.add_task("[cyan]Initializing system components...", total=100)
-            
-            # Set progress to 20%
-            progress.update(init_task, completed=20)
-            
-            # Initialize all components using the helper function
-            db, document_loader, embedding_generator, retriever, llm_manager, rag_system = create_knowledge_base(args.db_path)
-            
-            # Initialize PDF output generator
-            strategy_output_generator = StrategyOutputGenerator()
-            
-            # Register close function to ensure database is properly closed
-            atexit.register(db.close)
-            
-            # Set progress to 40%
-            progress.update(init_task, completed=40)
-            
-            # Backup database if requested
-            if args.backup:
-                progress.update(init_task, description="[cyan]Creating database backup...")
-                backup_success = db.backup_database()
-                if backup_success:
-                    progress.update(init_task, description="[green]Backup completed successfully.")
-                else:
-                    progress.update(init_task, description="[red]Warning: Backup failed.")
-                time.sleep(0.5)  # Short pause to show message
-            
-            # Set progress to 60%
-            progress.update(init_task, completed=60)
-            
-            # Optimize database if requested
-            if args.optimize:
-                progress.update(init_task, description="[cyan]Optimizing database...")
-                db.vacuum()
-                time.sleep(0.5)  # Short pause to show message
-            
-            # Set progress to 80%
-            progress.update(init_task, completed=80)
-            
-            # Check if Ollama is running
-            progress.update(init_task, description="[cyan]Checking LLM service...")
-            if not llm_manager.check_ollama_running():
-                progress.update(init_task, completed=100)
-                console.print("\n[bold red]Error:[/bold red] Ollama server is not running. Please start it with 'ollama serve'.")
-                sys.exit(1)
-            
-            # Ensure model is available
-            progress.update(init_task, description="[cyan]Verifying model availability...")
-            if not llm_manager.ensure_model_available():
-                console.print("[yellow]Warning:[/yellow] Could not ensure model availability. Some features may be limited.")
-            
-            # Complete the progress bar
-            progress.update(init_task, completed=100)
-        
-        # Get database info
-        db_info = db.get_db_info()
-        
-        # Create a nice table for database info
-        table = Table(title="Database Status", show_header=True, header_style="bold magenta")
-        table.add_column("Metric", style="cyan")
-        table.add_column("Value", style="green")
-        
-        table.add_row("Size", f"{db_info['size_mb']} MB")
-        table.add_row("Documents", f"{db_info['tables'].get('documents', 0)}")
-        table.add_row("Embeddings", f"{db_info['tables'].get('embeddings', 0)}")
-        
-        # Add document types if available
-        if 'document_types' in db_info and db_info['document_types']:
-            for doc_type, count in db_info['document_types'].items():
-                table.add_row(f"  {doc_type}", f"{count}")
-        
-        console.print(table)
-        
-        # Determine if we need to load documents
-        reload_needed = args.reload
-        
-        if db_info['tables'].get('documents', 0) == 0:
-            console.print("\n[yellow]No documents found in database. Will load documents.[/yellow]")
-            reload_needed = True
-        
-        # Load documents if needed
-        if reload_needed:
-            load_documents(document_loader, embedding_generator, db)
-        
-        # Run demo mode if requested
-        if args.demo:
-            run_demo_mode(rag_system, strategy_output_generator)
-        else:
-            # Run interactive mode
-            run_interactive_mode(rag_system, db, retriever, strategy_output_generator)
-        
-    except Exception as e:
-        console.print(f"\n[bold red]Error:[/bold red] {e}")
-        import traceback
-        console.print(traceback.format_exc())
-        sys.exit(1)
+    return db, document_loader, embedding_generator, retriever, llm_manager, rag_system
 
 def load_documents(document_loader, embedding_generator, db):
     """Load documents from all supported directories."""
@@ -212,44 +107,33 @@ def load_documents(document_loader, embedding_generator, db):
     
     console.print("\n[bold blue]Loading Documents[/bold blue]")
     
-    # Use the integrated loading and processing function
-    for directory, name in [
-        (PDF_DIR, "PDF"), 
-        (CSV_DIR, "CSV"), 
-        (JSON_DIR, "JSON"), 
-        (TXT_DIR, "Text")
-    ]:
-        if any(Path(directory).glob('*')):
-            console.print(f"\n[cyan]Processing {name} documents from {directory}...[/cyan]")
-            
-            with Progress() as progress:
-                task = progress.add_task(f"[green]Loading {name} documents...", total=100)
-                
-                # Process halfway indication
-                progress.update(task, completed=50)
-                
-                stats = document_loader.load_and_process(directory, embedding_generator)
-                
-                # Complete the task
-                progress.update(task, completed=100)
-            
-            if stats["success"]:
-                total_docs += stats["documents_loaded"]
-                console.print(f"✅ Successfully processed [bold green]{stats['documents_loaded']}[/bold green] {name} documents")
-                console.print(f"   Generated [bold green]{stats['embeddings_generated']}[/bold green] embeddings")
-                
-                # Show document types
-                if stats['document_types']:
-                    types_table = Table(show_header=True, header_style="dim")
-                    types_table.add_column("Document Type", style="cyan")
-                    types_table.add_column("Count", style="green", justify="right")
-                    
-                    for k, v in stats['document_types'].items():
-                        types_table.add_row(k, str(v))
-                    
-                    console.print(types_table)
-            else:
-                console.print(f"❌ [bold red]Error processing {name} documents:[/bold red] {stats.get('message', 'Unknown error')}")
+    # Process PDF documents first (strategy assessments)
+    if any(Path(PDF_DIR).glob('*')):
+        console.print(f"\n[cyan]Processing PDF documents from {PDF_DIR}...[/cyan]")
+        
+        with Progress() as progress:
+            task = progress.add_task(f"[green]Loading PDF documents...", total=100)
+            progress.update(task, completed=50)
+            stats = document_loader.load_and_process(PDF_DIR, embedding_generator)
+            progress.update(task, completed=100)
+        
+        if stats["success"]:
+            total_docs += stats["documents_loaded"]
+            console.print(f"✅ Successfully processed [bold green]{stats['documents_loaded']}[/bold green] PDF documents")
+    
+    # Process CSV documents (metric data)
+    if any(Path(CSV_DIR).glob('*')):
+        console.print(f"\n[cyan]Processing CSV documents from {CSV_DIR}...[/cyan]")
+        
+        with Progress() as progress:
+            task = progress.add_task(f"[green]Loading CSV documents...", total=100)
+            progress.update(task, completed=50)
+            stats = document_loader.load_and_process(CSV_DIR, embedding_generator)
+            progress.update(task, completed=100)
+        
+        if stats["success"]:
+            total_docs += stats["documents_loaded"]
+            console.print(f"✅ Successfully processed [bold green]{stats['documents_loaded']}[/bold green] CSV documents")
     
     elapsed_time = time.time() - start_time
     console.print(f"\n[bold green]Document loading complete in {elapsed_time:.2f} seconds[/bold green]")
@@ -269,7 +153,6 @@ def run_interactive_mode(rag_system, db, retriever, strategy_output_generator):
     help_table.add_row("strategy", "Generate a comprehensive strategy recommendation")
     help_table.add_row("search [term]", "Search for specific information")
     help_table.add_row("docs", "List all loaded documents")
-    help_table.add_row("feedback", "View recent user feedback")
     help_table.add_row("help", "Show this help message")
     
     console.print(help_table)
@@ -321,30 +204,6 @@ def run_interactive_mode(rag_system, db, retriever, strategy_output_generator):
                     console.print(docs_table)
                 continue
                 
-            if user_input.lower() == 'feedback':
-                # Get recent feedback
-                feedback = db.get_feedback(limit=10)
-                
-                if not feedback:
-                    console.print("[yellow]No feedback recorded yet.[/yellow]")
-                    continue
-                
-                console.print("\n[bold blue]💬 Recent Feedback:[/bold blue]")
-                
-                for fb in feedback:
-                    rating_str = "★" * fb['rating'] + "☆" * (5 - fb['rating']) if fb['rating'] else "No rating"
-                    
-                    feedback_panel = Panel(
-                        f"[bold]Query:[/bold] {fb['query']}\n\n"
-                        f"[bold]Rating:[/bold] {rating_str}\n"
-                        f"{f'[bold]Feedback:[/bold] {fb['feedback']}' if fb['feedback'] else ''}\n\n"
-                        f"[dim]Date: {fb['created_at']}[/dim]",
-                        border_style="blue",
-                        title=f"Feedback #{fb['id']}"
-                    )
-                    console.print(feedback_panel)
-                continue
-                
             if user_input.lower().startswith('search '):
                 search_term = user_input[7:].strip()
                 if not search_term:
@@ -383,7 +242,7 @@ def run_interactive_mode(rag_system, db, retriever, strategy_output_generator):
                 # Collect strategic inputs with validation
                 risk_tolerance = Prompt.ask(
                     "Risk Tolerance", 
-                    choices=["High", "Medium", "Low"], 
+                    choices=RISK_TOLERANCE_LEVELS, 
                     default="Medium"
                 )
                 
@@ -431,7 +290,6 @@ def run_interactive_mode(rag_system, db, retriever, strategy_output_generator):
                 # Save strategy to file
                 save_response = Confirm.ask("\nSave this strategy recommendation to file?")
                 if save_response:
-                    timestamp = time.time()
                     formatted_timestamp = time.strftime("%Y%m%d_%H%M%S")
                     filename = f"strategy_recommendation_{formatted_timestamp}.txt"
                     
@@ -454,68 +312,58 @@ def run_interactive_mode(rag_system, db, retriever, strategy_output_generator):
                             console.print(f"[red]Error generating PDF: {e}[/red]")
                 
                 # Get feedback
-                feedback = Confirm.ask("\nWould you like to provide feedback on this strategy?")
+                feedback = Confirm.ask("\nWas this strategy recommendation helpful?")
                 if feedback:
-                    rating = Prompt.ask("Rating (1-5 stars)", choices=["1", "2", "3", "4", "5"])
-                    feedback_text = Prompt.ask("Comments (optional)")
-                    
-                    try:
-                        rating = int(rating)
-                        db.store_feedback("Strategy generation", recommendation, feedback_text, rating)
-                        console.print("[green]Thank you for your feedback![/green]")
-                    except ValueError:
-                        console.print("[yellow]Invalid rating. Feedback not stored.[/yellow]")
-            else:
-                # Process regular query
-                console.print("\n[bold cyan]⏳ Processing query...[/bold cyan]")
-                
-                with Progress() as progress:
-                    query_task = progress.add_task("[green]Thinking...", total=100)
-                    
-                    # Update progress periodically to show activity
-                    for i in range(1, 5):
-                        time.sleep(0.3)
-                        progress.update(query_task, completed=i * 20)
-                    
-                    start_time = time.time()
-                    response = rag_system.process_query(user_input)
-                    elapsed_time = time.time() - start_time
-                    
-                    # Complete the progress
-                    progress.update(query_task, completed=100)
-                
-                response_panel = Panel(
-                    response,
-                    border_style="blue",
-                    title="🤖 QmiracTM AI Response",
-                    subtitle=f"Generated in {elapsed_time:.2f} seconds"
-                )
-                console.print(response_panel)
-                
-                # Get feedback (optional)
-                feedback_response = Confirm.ask("\nWas this response helpful?")
-                if not feedback_response:
-                    feedback = Prompt.ask("What could be improved? (optional)")
-                    rating = 2  # Below average rating
-                    if feedback:
-                        db.store_feedback(user_input, response, feedback, rating)
-                        console.print("[green]Thank you for your feedback![/green]")
+                    db.store_feedback(
+                        "Strategy generation", 
+                        recommendation, 
+                        "User found it helpful", 
+                        5
+                    )
+                    console.print("[green]Thank you for your feedback![/green]")
                 else:
-                    rating_str = Prompt.ask("How would you rate this response (1-5)?", choices=["1", "2", "3", "4", "5"])
-                    try:
-                        rating = int(rating_str)
-                        db.store_feedback(user_input, response, "Helpful", rating)
-                        console.print("[green]Thank you for your feedback![/green]")
-                    except ValueError:
-                        console.print("[yellow]Invalid rating. Feedback not stored.[/yellow]")
+                    feedback_text = Prompt.ask("What could be improved?")
+                    db.store_feedback(
+                        "Strategy generation", 
+                        recommendation, 
+                        feedback_text, 
+                        3
+                    )
+                    console.print("[green]Thank you for your feedback! We'll use it to improve future recommendations.[/green]")
                 
+                continue
+            
+            # Process regular query
+            console.print("\n[bold cyan]⏳ Processing query...[/bold cyan]")
+            
+            with Progress() as progress:
+                query_task = progress.add_task("[green]Thinking...", total=100)
+                
+                # Update progress periodically to show activity
+                for i in range(1, 5):
+                    time.sleep(0.3)
+                    progress.update(query_task, completed=i * 20)
+                
+                start_time = time.time()
+                response = rag_system.process_query(user_input)
+                elapsed_time = time.time() - start_time
+                
+                # Complete the progress
+                progress.update(query_task, completed=100)
+            
+            response_panel = Panel(
+                response,
+                border_style="blue",
+                title="🤖 QmiracTM AI Response",
+                subtitle=f"Generated in {elapsed_time:.2f} seconds"
+            )
+            console.print(response_panel)
+            
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted by user.[/yellow]")
             break
         except Exception as e:
             console.print(f"\n[bold red]Error processing query:[/bold red] {e}")
-            import traceback
-            console.print(traceback.format_exc())
     
     console.print("\n[bold blue]QmiracTM AI Assistant shutting down.[/bold blue]")
 
@@ -635,15 +483,446 @@ def run_demo_mode(rag_system, strategy_output_generator):
                 console.print(f"[red]Error generating PDF: {e}[/red]")
         
         console.print("\n[bold green]Demo completed![/bold green] Switching to interactive mode...\n")
-        if Confirm.ask("Would you like to continue to interactive mode?"):
-            run_interactive_mode(rag_system, None, None, strategy_output_generator)
         
     except KeyboardInterrupt:
         console.print("\n[yellow]Demo interrupted by user.[/yellow]")
     except Exception as e:
         console.print(f"\n[bold red]Error in demo mode:[/bold red] {e}")
-        import traceback
-        console.print(traceback.format_exc())
 
-if __name__ == "__main__":
-    main()
+def run_web_interface(db, rag_system, strategy_output_generator):
+    """Run a simple web interface for the knowledge base."""
+    try:
+        import flask
+        from flask import Flask, request, jsonify, render_template, send_from_directory
+        from werkzeug.utils import secure_filename
+        import threading
+        import webbrowser
+    except ImportError:
+        console.print("[bold red]Error:[/bold red] Flask is required for the web interface.")
+        console.print("Install it with: pip install flask")
+        return
+    
+    # Create uploads folder if it doesn't exist
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+    PDF_OUTPUT_FOLDER = os.path.join(os.path.dirname(__file__), "strategy_outputs")
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    os.makedirs(PDF_OUTPUT_FOLDER, exist_ok=True)
+    
+    # Create a simple Flask app
+    app = Flask("QmiracTM_KB", 
+                template_folder=os.path.join(os.path.dirname(__file__), "templates"),
+                static_folder=os.path.join(os.path.dirname(__file__), "static"))
+    
+    app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+    app.config['PDF_OUTPUT_FOLDER'] = PDF_OUTPUT_FOLDER
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+    
+    # Ensure directories exist
+    os.makedirs(os.path.join(app.static_folder), exist_ok=True)
+    os.makedirs(os.path.join(app.template_folder), exist_ok=True)
+    
+    # Initialize document_loader and embedding_generator for uploads
+    document_loader = DocumentLoader(db)
+    embedding_generator = EmbeddingGenerator()
+    
+    # Set up Flask routes
+    @app.route('/')
+    def index():
+        return render_template('index.html')
+    
+    @app.route('/api/query', methods=['POST'])
+    def query():
+        data = request.json
+        user_query = data.get('query', '')
+        
+        if not user_query:
+            return jsonify({'error': 'No query provided'}), 400
+        
+        try:
+            response = rag_system.process_query(user_query)
+            return jsonify({'response': response})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/strategy', methods=['POST'])
+    def strategy():
+        data = request.json
+        
+        # Validate inputs
+        if not data.get('risk_tolerance'):
+            return jsonify({'error': 'Risk tolerance is required'}), 400
+        
+        try:
+            recommendation = rag_system.generate_strategy_recommendation(data)
+            
+            # Generate PDF
+            formatted_timestamp = time.strftime("%Y%m%d_%H%M%S")
+            pdf_filename = f"strategy_recommendation_{formatted_timestamp}.pdf"
+            pdf_path = strategy_output_generator.generate_pdf(
+                recommendation, 
+                data,
+                filename=pdf_filename
+            )
+            
+            return jsonify({
+                'recommendation': recommendation,
+                'pdf_path': pdf_path,
+                'pdf_filename': pdf_filename
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/documents', methods=['GET'])
+    def get_documents():
+        try:
+            documents = db.get_documents(limit=100)
+            return jsonify({'documents': documents})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/upload', methods=['POST'])
+    def upload_file():
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'No file part'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No selected file'}), 400
+        
+        if file:
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+            
+            # Process the uploaded file based on its type
+            file_ext = os.path.splitext(filename)[1].lower()
+            
+            try:
+                if file_ext == '.pdf':
+                    doc = document_loader.load_pdf(file_path)
+                elif file_ext == '.csv':
+                    doc = document_loader.load_csv(file_path)
+                else:
+                    return jsonify({
+                        'success': False, 
+                        'message': 'Unsupported file type. Please upload PDF or CSV.'
+                    }), 400
+                
+                if doc:
+                    # Generate embeddings
+                    document_id = doc['id']
+                    document_type = doc['type']
+                    document_content = doc['content']
+                    
+                    embeddings = embedding_generator.generate_embeddings(
+                        document_id, 
+                        document_content, 
+                        document_type
+                    )
+                    
+                    # Store embeddings
+                    for emb in embeddings:
+                        db.store_embedding(
+                            emb['document_id'],
+                            emb['chunk_text'],
+                            emb['embedding_vector'],
+                            emb['chunk_index']
+                        )
+                    
+                    return jsonify({
+                        'success': True, 
+                        'message': f'File uploaded and processed successfully. Generated {len(embeddings)} embeddings.',
+                        'document_id': document_id
+                    })
+                else:
+                    return jsonify({
+                        'success': False, 
+                        'message': 'Failed to process the uploaded file.'
+                    }), 500
+            
+            except Exception as e:
+                return jsonify({
+                    'success': False, 
+                    'message': f'Error processing file: {str(e)}'
+                }), 500
+    
+    @app.route('/download/<filename>', methods=['GET'])
+    def download_pdf(filename):
+        return send_from_directory(app.config['PDF_OUTPUT_FOLDER'], filename, as_attachment=True)
+    
+    # Create a simple index.html if it doesn't exist
+    index_path = os.path.join(app.template_folder, "index.html")
+    if not os.path.exists(index_path):
+        with open(index_path, "w") as f:
+            f.write("""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QmiracTM Knowledge Base</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <style>
+        body { padding-top: 20px; }
+        .response-area { min-height: 200px; }
+        .loading { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12 text-center">
+                <h1>QmiracTM AI-Driven Knowledge Base</h1>
+                <p class="lead">Business Strategy Intelligence System</p>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="nav-tab" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="nav-query-tab" data-bs-toggle="tab" href="#nav-query" role="tab">Query</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="nav-strategy-tab" data-bs-toggle="tab" href="#nav-strategy" role="tab">Strategy Generator</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="nav-documents-tab" data-bs-toggle="tab" href="#nav-documents" role="tab">Documents</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="nav-tabContent">
+                            <!-- Query Tab -->
+                            <div class="tab-pane fade show active" id="nav-query" role="tabpanel">
+                                <form id="query-form">
+                                    <div class="mb-3">
+                                        <label for="query-input" class="form-label">Ask a business strategy question:</label>
+                                        <input type="text" class="form-control" id="query-input" placeholder="How can I improve my strategic position?">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Submit Query</button>
+                                    <div class="spinner-border text-primary loading" id="query-loading" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </form>
+                                <div class="mt-4">
+                                    <h5>Response:</h5>
+                                    <div class="border p-3 response-area bg-light" id="query-response">
+                                        <p class="text-muted">Your response will appear here.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Strategy Generator Tab -->
+                            <div class="tab-pane fade" id="nav-strategy" role="tabpanel">
+                                <form id="strategy-form">
+                                    <div class="mb-3">
+                                        <label for="risk-tolerance" class="form-label">Risk Tolerance:</label>
+                                        <select class="form-select" id="risk-tolerance">
+                                            <option value="Low">Low</option>
+                                            <option value="Medium" selected>Medium</option>
+                                            <option value="High">High</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="strategic-priorities" class="form-label">Strategic Priorities:</label>
+                                        <textarea class="form-control" id="strategic-priorities" rows="2" placeholder="Market expansion, product innovation, customer retention"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="strategic-constraints" class="form-label">Strategic Constraints:</label>
+                                        <textarea class="form-control" id="strategic-constraints" rows="2" placeholder="Limited capital, competitive market"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="execution-priorities" class="form-label">Execution Priorities:</label>
+                                        <textarea class="form-control" id="execution-priorities" rows="2" placeholder="Sales growth, operational efficiency"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="execution-constraints" class="form-label">Execution Constraints:</label>
+                                        <textarea class="form-control" id="execution-constraints" rows="2" placeholder="Resource limitations, regulatory requirements"></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Generate Strategy</button>
+                                    <div class="spinner-border text-primary loading" id="strategy-loading" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </form>
+                                <div class="mt-4">
+                                    <h5>Strategy Recommendation:</h5>
+                                    <div class="border p-3 response-area bg-light" id="strategy-response">
+                                        <p class="text-muted">Your strategy recommendation will appear here.</p>
+                                    </div>
+                                    <button class="btn btn-success mt-2" id="download-pdf" style="display: none;">Download PDF</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Documents Tab -->
+                            <div class="tab-pane fade" id="nav-documents" role="tabpanel">
+                                <div class="mb-3">
+                                    <h5>Upload Documents</h5>
+                                    <form id="upload-form" enctype="multipart/form-data">
+                                        <div class="mb-3">
+                                            <label for="document-file" class="form-label">Select PDF or CSV file:</label>
+                                            <input class="form-control" type="file" id="document-file" name="file" accept=".pdf,.csv">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary">Upload</button>
+                                        <div class="spinner-border text-primary loading" id="upload-loading" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="mt-4">
+                                    <h5>Loaded Documents</h5>
+                                    <button id="refresh-docs" class="btn btn-outline-secondary btn-sm mb-2">Refresh List</button>
+                                    <div id="documents-list" class="border p-3 bg-light">
+                                        <p class="text-muted">Loading documents...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Query Tab
+        document.getElementById('query-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const query = document.getElementById('query-input').value;
+            if (!query) return;
+            
+            document.getElementById('query-loading').style.display = 'inline-block';
+            document.getElementById('query-response').innerHTML = '<p>Processing query...</p>';
+            
+            fetch('/api/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('query-loading').style.display = 'none';
+                document.getElementById('query-response').innerHTML = `<p>${data.response.replace(/\\n/g, '<br>')}</p>`;
+            })
+            .catch(error => {
+                document.getElementById('query-loading').style.display = 'none';
+                document.getElementById('query-response').innerHTML = `<p class="text-danger">Error: ${error}</p>`;
+            });
+        });
+        
+        // Strategy Generator Tab
+        document.getElementById('strategy-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const strategic_inputs = {
+                risk_tolerance: document.getElementById('risk-tolerance').value,
+                strategic_priorities: document.getElementById('strategic-priorities').value,
+                strategic_constraints: document.getElementById('strategic-constraints').value,
+                execution_priorities: document.getElementById('execution-priorities').value,
+                execution_constraints: document.getElementById('execution-constraints').value
+            };
+            
+            document.getElementById('strategy-loading').style.display = 'inline-block';
+            document.getElementById('strategy-response').innerHTML = '<p>Generating strategy recommendation...</p>';
+            document.getElementById('download-pdf').style.display = 'none';
+            
+            fetch('/api/strategy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(strategic_inputs)
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('strategy-loading').style.display = 'none';
+                document.getElementById('strategy-response').innerHTML = `<p>${data.recommendation.replace(/\\n/g, '<br>')}</p>`;
+                
+                if (data.pdf_path) {
+                    document.getElementById('download-pdf').style.display = 'inline-block';
+                    document.getElementById('download-pdf').onclick = function() {
+                        window.location.href = `/download/${data.pdf_filename}`;
+                    };
+                }
+            })
+            .catch(error => {
+                document.getElementById('strategy-loading').style.display = 'none';
+                document.getElementById('strategy-response').innerHTML = `<p class="text-danger">Error: ${error}</p>`;
+            });
+        });
+        
+        // Documents Tab
+        function loadDocuments() {
+            fetch('/api/documents')
+            .then(response => response.json())
+            .then(data => {
+                const docsList = document.getElementById('documents-list');
+                if (data.documents.length === 0) {
+                    docsList.innerHTML = '<p class="text-muted">No documents loaded.</p>';
+                    return;
+                }
+                
+                let html = '<div class="list-group">';
+                data.documents.forEach(doc => {
+                    html += `<div class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">${doc.title}</h6>
+                            <small>ID: ${doc.id}</small>
+                        </div>
+                        <p class="mb-1">Type: ${doc.document_type}</p>
+                    </div>`;
+                });
+                html += '</div>';
+                docsList.innerHTML = html;
+            })
+            .catch(error => {
+                document.getElementById('documents-list').innerHTML = `<p class="text-danger">Error loading documents: ${error}</p>`;
+            });
+        }
+        
+        document.getElementById('refresh-docs').addEventListener('click', loadDocuments);
+        
+        document.getElementById('upload-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('document-file');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select a file to upload');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            document.getElementById('upload-loading').style.display = 'inline-block';
+            
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('upload-loading').style.display = 'none';
+                if (data.success) {
+                    alert('Document uploaded successfully!');
+                    fileInput.value = '';
+                    loadDocuments();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                document.getElementById('upload-loading').style.display = 'none';
+                alert('Error uploading document: ' + error);
+            });
+        });
+        
+        // Load documents when tab is shown
+        document.getElementById('nav-documents-tab').addEventListener('click', loadDocuments);
+        
+        // Initial document load
+        window.onload = loadDocuments;
+    </script>
+</body>
+</html>
+""")
