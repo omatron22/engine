@@ -31,6 +31,9 @@ from src.config import (
     RISK_TOLERANCE_LEVELS
 )
 
+# Add at the top after imports
+print("Starting application...")
+
 # Initialize rich console for better UI
 console = Console()
 
@@ -926,3 +929,61 @@ def run_web_interface(db, rag_system, strategy_output_generator):
 </body>
 </html>
 """)
+            
+
+def main():
+    """Main execution function."""
+    print("Arguments parsed...")
+    # Set up signal handler for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    # Parse command line arguments
+    args = setup_argparse()
+    
+    # Display welcome banner
+    display_welcome_banner()
+    
+    print("Creating knowledge base...")
+    # Create knowledge base components
+    db, document_loader, embedding_generator, retriever, llm_manager, rag_system = create_knowledge_base(args.db_path)
+    
+    # Optimize database if requested
+    if args.optimize:
+        console.print("\n[cyan]Optimizing database...[/cyan]")
+        db.vacuum()
+    
+    # Initialize output generator
+    strategy_output_generator = StrategyOutputGenerator()
+    
+    print("Loading documents...")
+    # Load documents if needed (either --reload flag or empty database)
+    if args.reload or db.get_embeddings_count() == 0:
+        load_documents(document_loader, embedding_generator, db)
+    else:
+        console.print(f"\n[cyan]Using existing document embeddings. ({db.get_embeddings_count()} embeddings found)[/cyan]")
+        console.print("[dim]Use --reload to force document reloading[/dim]")
+    
+    print("Running application mode...")
+    # Run the appropriate mode
+    if args.web:
+        console.print("\n[bold blue]Starting Web Interface[/bold blue]")
+        run_web_interface(db, rag_system, strategy_output_generator)
+    elif args.demo:
+        console.print("\n[bold blue]Starting Demo Mode[/bold blue]")
+        run_demo_mode(rag_system, strategy_output_generator)
+        # After demo, switch to interactive mode
+        run_interactive_mode(rag_system, db, retriever, strategy_output_generator)
+    else:
+        run_interactive_mode(rag_system, db, retriever, strategy_output_generator)
+    
+    # Close the database connection
+    db.close()
+
+if __name__ == "__main__":
+    try:
+        print("Entering main execution...")
+        main()
+    except Exception as e:
+        print(f"ERROR: Application failed with exception: {e}")
+        import traceback
+        traceback.print_exc()
