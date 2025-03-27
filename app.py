@@ -36,6 +36,7 @@ from src.config import (
     PDF_DIR, CSV_DIR, JSON_DIR, TXT_DIR, DB_PATH, BACKUP_DIR,
     RISK_TOLERANCE_LEVELS, BUSINESS_DOMAINS
 )
+from src.output_generator import StrategyOutputGenerator
 
 # Initialize rich console for better UI
 console = Console()
@@ -115,6 +116,9 @@ def main():
             # Initialize all components using the helper function
             db, document_loader, embedding_generator, retriever, llm_manager, rag_system = create_knowledge_base(args.db_path)
             
+            # Initialize PDF output generator
+            strategy_output_generator = StrategyOutputGenerator()
+            
             # Register close function to ensure database is properly closed
             atexit.register(db.close)
             
@@ -190,10 +194,10 @@ def main():
         
         # Run demo mode if requested
         if args.demo:
-            run_demo_mode(rag_system)
+            run_demo_mode(rag_system, strategy_output_generator)
         else:
             # Run interactive mode
-            run_interactive_mode(rag_system, db, retriever)
+            run_interactive_mode(rag_system, db, retriever, strategy_output_generator)
         
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}")
@@ -251,7 +255,7 @@ def load_documents(document_loader, embedding_generator, db):
     console.print(f"\n[bold green]Document loading complete in {elapsed_time:.2f} seconds[/bold green]")
     console.print(f"[bold blue]Total documents loaded: {total_docs}[/bold blue]")
 
-def run_interactive_mode(rag_system, db, retriever):
+def run_interactive_mode(rag_system, db, retriever, strategy_output_generator):
     """Run interactive command-line interface."""
     console.print("\n" + "=" * shutil.get_terminal_size().columns)
     console.print("[bold blue]QmiracTM AI Assistant Ready![/bold blue]", justify="center")
@@ -435,6 +439,19 @@ def run_interactive_mode(rag_system, db, retriever):
                         f.write(recommendation)
                     
                     console.print(f"[green]Strategy saved to {filename}[/green]")
+                    
+                    # Offer PDF generation
+                    pdf_option = Confirm.ask("Would you like to generate a PDF version?")
+                    if pdf_option:
+                        try:
+                            pdf_path = strategy_output_generator.generate_pdf(
+                                recommendation, 
+                                strategic_inputs,
+                                filename=f"strategy_recommendation_{formatted_timestamp}.pdf"
+                            )
+                            console.print(f"[green]Strategy PDF generated at: {pdf_path}[/green]")
+                        except Exception as e:
+                            console.print(f"[red]Error generating PDF: {e}[/red]")
                 
                 # Get feedback
                 feedback = Confirm.ask("\nWould you like to provide feedback on this strategy?")
@@ -502,7 +519,7 @@ def run_interactive_mode(rag_system, db, retriever):
     
     console.print("\n[bold blue]QmiracTM AI Assistant shutting down.[/bold blue]")
 
-def run_demo_mode(rag_system):
+def run_demo_mode(rag_system, strategy_output_generator):
     """Run a demonstration with sample queries."""
     demo_queries = [
         "What factors should I consider in market attractiveness assessment?",
@@ -603,9 +620,23 @@ def run_demo_mode(rag_system):
         )
         console.print(recommendation_panel)
         
+        # Offer to generate PDF
+        pdf_option = Confirm.ask("\nWould you like to generate a PDF version?")
+        if pdf_option:
+            try:
+                formatted_timestamp = time.strftime("%Y%m%d_%H%M%S")
+                pdf_path = strategy_output_generator.generate_pdf(
+                    recommendation, 
+                    strategic_inputs,
+                    filename=f"demo_strategy_{formatted_timestamp}.pdf"
+                )
+                console.print(f"[green]Strategy PDF generated at: {pdf_path}[/green]")
+            except Exception as e:
+                console.print(f"[red]Error generating PDF: {e}[/red]")
+        
         console.print("\n[bold green]Demo completed![/bold green] Switching to interactive mode...\n")
         if Confirm.ask("Would you like to continue to interactive mode?"):
-            run_interactive_mode(rag_system, None, None)
+            run_interactive_mode(rag_system, None, None, strategy_output_generator)
         
     except KeyboardInterrupt:
         console.print("\n[yellow]Demo interrupted by user.[/yellow]")
