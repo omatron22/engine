@@ -1,21 +1,28 @@
 #!/usr/bin/env python3
 """
-QmiracTM AI-Driven Knowledge Base
+QmiracTM AI-Driven Knowledge Base Demo
 
-A Retrieval-Augmented Generation (RAG) system for business strategy development.
+A polished demo for the Retrieval-Augmented Generation (RAG) system 
+for offline business strategy development.
 """
 import os
 import sys
 import time
 import argparse
-from pathlib import Path
 import signal
 import atexit
+from pathlib import Path
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.progress import Progress
+from rich.prompt import Prompt, Confirm
+import shutil
 
 # Add src directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import from package - use the new init functionality
+# Import from package
 from src import (
     Database, 
     DocumentLoader, 
@@ -29,6 +36,9 @@ from src.config import (
     PDF_DIR, CSV_DIR, JSON_DIR, TXT_DIR, DB_PATH, BACKUP_DIR,
     RISK_TOLERANCE_LEVELS, BUSINESS_DOMAINS
 )
+
+# Initialize rich console for better UI
+console = Console()
 
 def setup_argparse():
     """Configure command line arguments."""
@@ -64,8 +74,25 @@ def setup_argparse():
 
 def signal_handler(sig, frame):
     """Handle interrupt signals gracefully."""
-    print("\nReceived interrupt signal. Shutting down gracefully...")
+    console.print("\n[bold red]Received interrupt signal. Shutting down gracefully...[/bold red]")
     sys.exit(0)
+
+def display_welcome_banner():
+    """Display a nicely formatted welcome banner."""
+    title = "QmiracTM AI-Driven Knowledge Base"
+    subtitle = "Business Strategy Intelligence System"
+    version = "v0.1.0"
+    
+    width = shutil.get_terminal_size().columns
+    width = min(width, 100)  # Cap at 100 columns
+    
+    console.print("\n")
+    console.print(Panel(
+        f"[bold blue]{title}[/bold blue]\n[yellow]{subtitle}[/yellow]\n[dim]{version}[/dim]",
+        width=width,
+        border_style="blue",
+        expand=False
+    ))
 
 def main():
     """Main application entry point."""
@@ -76,53 +103,85 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     
     # Display welcome message
-    print("\n" + "=" * 70)
-    print(f"{'QmiracTM AI-Driven Knowledge Base':^70}")
-    print(f"{'Business Strategy Intelligence System':^70}")
-    print("=" * 70 + "\n")
+    display_welcome_banner()
     
     try:
-        # Initialize all components using the helper function
-        print("Initializing system components...")
-        db, document_loader, embedding_generator, retriever, llm_manager, rag_system = create_knowledge_base(args.db_path)
-        
-        # Register close function to ensure database is properly closed
-        atexit.register(db.close)
-        
-        # Backup database if requested
-        if args.backup:
-            print("Creating database backup...")
-            backup_success = db.backup_database()
-            if backup_success:
-                print("Backup completed successfully.")
-            else:
-                print("Warning: Backup failed.")
-        
-        # Optimize database if requested
-        if args.optimize:
-            print("Optimizing database...")
-            db.vacuum()
-        
-        # Check if Ollama is running
-        print("Checking LLM service...")
-        if not llm_manager.check_ollama_running():
-            print("Error: Ollama server is not running. Please start it with 'ollama serve'.")
-            sys.exit(1)
-        
-        # Ensure model is available
-        print("Verifying model availability...")
-        if not llm_manager.ensure_model_available():
-            print("Warning: Could not ensure model availability. Some features may be limited.")
+        with Progress() as progress:
+            init_task = progress.add_task("[cyan]Initializing system components...", total=100)
+            
+            # Set progress to 20%
+            progress.update(init_task, completed=20)
+            
+            # Initialize all components using the helper function
+            db, document_loader, embedding_generator, retriever, llm_manager, rag_system = create_knowledge_base(args.db_path)
+            
+            # Register close function to ensure database is properly closed
+            atexit.register(db.close)
+            
+            # Set progress to 40%
+            progress.update(init_task, completed=40)
+            
+            # Backup database if requested
+            if args.backup:
+                progress.update(init_task, description="[cyan]Creating database backup...")
+                backup_success = db.backup_database()
+                if backup_success:
+                    progress.update(init_task, description="[green]Backup completed successfully.")
+                else:
+                    progress.update(init_task, description="[red]Warning: Backup failed.")
+                time.sleep(0.5)  # Short pause to show message
+            
+            # Set progress to 60%
+            progress.update(init_task, completed=60)
+            
+            # Optimize database if requested
+            if args.optimize:
+                progress.update(init_task, description="[cyan]Optimizing database...")
+                db.vacuum()
+                time.sleep(0.5)  # Short pause to show message
+            
+            # Set progress to 80%
+            progress.update(init_task, completed=80)
+            
+            # Check if Ollama is running
+            progress.update(init_task, description="[cyan]Checking LLM service...")
+            if not llm_manager.check_ollama_running():
+                progress.update(init_task, completed=100)
+                console.print("\n[bold red]Error:[/bold red] Ollama server is not running. Please start it with 'ollama serve'.")
+                sys.exit(1)
+            
+            # Ensure model is available
+            progress.update(init_task, description="[cyan]Verifying model availability...")
+            if not llm_manager.ensure_model_available():
+                console.print("[yellow]Warning:[/yellow] Could not ensure model availability. Some features may be limited.")
+            
+            # Complete the progress bar
+            progress.update(init_task, completed=100)
         
         # Get database info
         db_info = db.get_db_info()
-        print(f"\nDatabase Status: {db_info['size_mb']} MB, {db_info['tables'].get('documents', 0)} documents, {db_info['tables'].get('embeddings', 0)} embeddings")
+        
+        # Create a nice table for database info
+        table = Table(title="Database Status", show_header=True, header_style="bold magenta")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Size", f"{db_info['size_mb']} MB")
+        table.add_row("Documents", f"{db_info['tables'].get('documents', 0)}")
+        table.add_row("Embeddings", f"{db_info['tables'].get('embeddings', 0)}")
+        
+        # Add document types if available
+        if 'document_types' in db_info and db_info['document_types']:
+            for doc_type, count in db_info['document_types'].items():
+                table.add_row(f"  {doc_type}", f"{count}")
+        
+        console.print(table)
         
         # Determine if we need to load documents
         reload_needed = args.reload
         
         if db_info['tables'].get('documents', 0) == 0:
-            print("No documents found in database. Will load documents.")
+            console.print("\n[yellow]No documents found in database. Will load documents.[/yellow]")
             reload_needed = True
         
         # Load documents if needed
@@ -137,7 +196,9 @@ def main():
             run_interactive_mode(rag_system, db, retriever)
         
     except Exception as e:
-        print(f"\nError: {e}")
+        console.print(f"\n[bold red]Error:[/bold red] {e}")
+        import traceback
+        console.print(traceback.format_exc())
         sys.exit(1)
 
 def load_documents(document_loader, embedding_generator, db):
@@ -145,7 +206,9 @@ def load_documents(document_loader, embedding_generator, db):
     start_time = time.time()
     total_docs = 0
     
-    # Use the new integrated loading and processing function
+    console.print("\n[bold blue]Loading Documents[/bold blue]")
+    
+    # Use the integrated loading and processing function
     for directory, name in [
         (PDF_DIR, "PDF"), 
         (CSV_DIR, "CSV"), 
@@ -153,38 +216,64 @@ def load_documents(document_loader, embedding_generator, db):
         (TXT_DIR, "Text")
     ]:
         if any(Path(directory).glob('*')):
-            print(f"\nProcessing {name} documents from {directory}...")
-            stats = document_loader.load_and_process(directory, embedding_generator)
+            console.print(f"\n[cyan]Processing {name} documents from {directory}...[/cyan]")
+            
+            with Progress() as progress:
+                task = progress.add_task(f"[green]Loading {name} documents...", total=100)
+                
+                # Process halfway indication
+                progress.update(task, completed=50)
+                
+                stats = document_loader.load_and_process(directory, embedding_generator)
+                
+                # Complete the task
+                progress.update(task, completed=100)
             
             if stats["success"]:
                 total_docs += stats["documents_loaded"]
-                print(f"Successfully processed {stats['documents_loaded']} {name} documents")
-                print(f"Generated {stats['embeddings_generated']} embeddings")
-                print(f"Document types: {', '.join([f'{k} ({v})' for k, v in stats['document_types'].items()])}")
+                console.print(f"✅ Successfully processed [bold green]{stats['documents_loaded']}[/bold green] {name} documents")
+                console.print(f"   Generated [bold green]{stats['embeddings_generated']}[/bold green] embeddings")
+                
+                # Show document types
+                if stats['document_types']:
+                    types_table = Table(show_header=True, header_style="dim")
+                    types_table.add_column("Document Type", style="cyan")
+                    types_table.add_column("Count", style="green", justify="right")
+                    
+                    for k, v in stats['document_types'].items():
+                        types_table.add_row(k, str(v))
+                    
+                    console.print(types_table)
             else:
-                print(f"Error processing {name} documents: {stats.get('message', 'Unknown error')}")
+                console.print(f"❌ [bold red]Error processing {name} documents:[/bold red] {stats.get('message', 'Unknown error')}")
     
     elapsed_time = time.time() - start_time
-    print(f"\nDocument loading complete in {elapsed_time:.2f} seconds")
-    print(f"Total documents loaded: {total_docs}")
+    console.print(f"\n[bold green]Document loading complete in {elapsed_time:.2f} seconds[/bold green]")
+    console.print(f"[bold blue]Total documents loaded: {total_docs}[/bold blue]")
 
 def run_interactive_mode(rag_system, db, retriever):
     """Run interactive command-line interface."""
-    print("\n" + "="*70)
-    print(f"{'QmiracTM AI Assistant Ready!':^70}")
-    print("="*70)
-    print("Available commands:")
-    print("  'exit' - Quit the application")
-    print("  'strategy' - Generate a comprehensive strategy recommendation")
-    print("  'search [term]' - Search for specific information")
-    print("  'docs' - List all loaded documents")
-    print("  'feedback' - View recent user feedback")
-    print("  'help' - Show this help message")
-    print("-" * 70 + "\n")
+    console.print("\n" + "=" * shutil.get_terminal_size().columns)
+    console.print("[bold blue]QmiracTM AI Assistant Ready![/bold blue]", justify="center")
+    console.print("=" * shutil.get_terminal_size().columns)
+    
+    help_table = Table(show_header=True, header_style="bold cyan")
+    help_table.add_column("Command", style="yellow")
+    help_table.add_column("Description", style="white")
+    
+    help_table.add_row("exit", "Quit the application")
+    help_table.add_row("strategy", "Generate a comprehensive strategy recommendation")
+    help_table.add_row("search [term]", "Search for specific information")
+    help_table.add_row("docs", "List all loaded documents")
+    help_table.add_row("feedback", "View recent user feedback")
+    help_table.add_row("help", "Show this help message")
+    
+    console.print(help_table)
+    console.print("-" * shutil.get_terminal_size().columns + "\n")
     
     while True:
         try:
-            user_input = input("\n👤 Query: ").strip()
+            user_input = Prompt.ask("\n[bold cyan]👤 Query[/bold cyan]")
             
             if not user_input:
                 continue
@@ -193,13 +282,7 @@ def run_interactive_mode(rag_system, db, retriever):
                 break
                 
             if user_input.lower() == 'help':
-                print("\nAvailable commands:")
-                print("  'exit' - Quit the application")
-                print("  'strategy' - Generate a comprehensive strategy recommendation")
-                print("  'search [term]' - Search for specific information")
-                print("  'docs' - List all loaded documents")
-                print("  'feedback' - View recent user feedback")
-                print("  'help' - Show this help message")
+                console.print(help_table)
                 continue
                 
             if user_input.lower() == 'docs':
@@ -207,10 +290,11 @@ def run_interactive_mode(rag_system, db, retriever):
                 documents = db.get_documents(limit=50)
                 
                 if not documents:
-                    print("No documents loaded.")
+                    console.print("[yellow]No documents loaded.[/yellow]")
                     continue
                 
-                print("\n📚 Loaded Documents:")
+                console.print("\n[bold blue]📚 Loaded Documents:[/bold blue]")
+                
                 # Group by document type
                 doc_types = {}
                 for doc in documents:
@@ -221,9 +305,16 @@ def run_interactive_mode(rag_system, db, retriever):
                 
                 # Print documents by type
                 for doc_type, docs in doc_types.items():
-                    print(f"\n{doc_type.upper()} ({len(docs)}):")
+                    console.print(f"\n[bold cyan]{doc_type.upper()} ({len(docs)}):[/bold cyan]")
+                    
+                    docs_table = Table(show_header=False, box=None)
+                    docs_table.add_column("ID", style="dim")
+                    docs_table.add_column("Title", style="green")
+                    
                     for doc in docs:
-                        print(f"  ID {doc['id']}: {doc['title']}")
+                        docs_table.add_row(f"ID {doc['id']}", doc['title'])
+                    
+                    console.print(docs_table)
                 continue
                 
             if user_input.lower() == 'feedback':
@@ -231,53 +322,71 @@ def run_interactive_mode(rag_system, db, retriever):
                 feedback = db.get_feedback(limit=10)
                 
                 if not feedback:
-                    print("No feedback recorded yet.")
+                    console.print("[yellow]No feedback recorded yet.[/yellow]")
                     continue
                 
-                print("\n💬 Recent Feedback:")
+                console.print("\n[bold blue]💬 Recent Feedback:[/bold blue]")
+                
                 for fb in feedback:
                     rating_str = "★" * fb['rating'] + "☆" * (5 - fb['rating']) if fb['rating'] else "No rating"
-                    print(f"\nQuery: {fb['query']}")
-                    print(f"Rating: {rating_str}")
-                    if fb['feedback']:
-                        print(f"Feedback: {fb['feedback']}")
-                    print(f"Date: {fb['created_at']}")
-                    print("-" * 40)
+                    
+                    feedback_panel = Panel(
+                        f"[bold]Query:[/bold] {fb['query']}\n\n"
+                        f"[bold]Rating:[/bold] {rating_str}\n"
+                        f"{f'[bold]Feedback:[/bold] {fb['feedback']}' if fb['feedback'] else ''}\n\n"
+                        f"[dim]Date: {fb['created_at']}[/dim]",
+                        border_style="blue",
+                        title=f"Feedback #{fb['id']}"
+                    )
+                    console.print(feedback_panel)
                 continue
                 
             if user_input.lower().startswith('search '):
                 search_term = user_input[7:].strip()
                 if not search_term:
-                    print("Please provide a search term.")
+                    console.print("[yellow]Please provide a search term.[/yellow]")
                     continue
                     
-                print(f"\n🔍 Searching for: {search_term}")
-                results = retriever.get_relevant_documents(search_term, top_k=5)
+                console.print(f"\n[bold cyan]🔍 Searching for:[/bold cyan] {search_term}")
+                
+                with Progress() as progress:
+                    search_task = progress.add_task("[green]Searching...", total=100)
+                    progress.update(search_task, completed=50)
+                    results = retriever.get_relevant_documents(search_term, top_k=5)
+                    progress.update(search_task, completed=100)
                 
                 if not results:
-                    print("No relevant documents found.")
+                    console.print("[yellow]No relevant documents found.[/yellow]")
                     continue
                     
-                print("\nTop relevant document chunks:")
+                console.print("\n[bold blue]Top relevant document chunks:[/bold blue]")
+                
                 for i, result in enumerate(results):
-                    print(f"\n{i+1}. Document: {result['document_title']} (Type: {result['document_type']})")
-                    print(f"   Relevance: {result['similarity']:.2f}")
-                    print(f"   Content: {result['chunk_text'][:200]}...")
+                    result_panel = Panel(
+                        f"[bold]Document:[/bold] {result['document_title']} (Type: {result['document_type']})\n"
+                        f"[bold]Relevance:[/bold] {result['similarity']:.2f}\n\n"
+                        f"[bold]Content:[/bold]\n{result['chunk_text'][:300]}...",
+                        border_style="blue",
+                        title=f"Result #{i+1}"
+                    )
+                    console.print(result_panel)
                 continue
             
             if user_input.lower() == 'strategy':
+                console.print("\n[bold blue]Strategy Recommendation Generator[/bold blue]")
+                console.print("[dim]Please provide the following inputs to generate a customized strategy recommendation:[/dim]\n")
+                
                 # Collect strategic inputs with validation
-                risk_tolerance = input("\nRisk Tolerance (High/Medium/Low): ").strip()
-                if risk_tolerance.capitalize() not in RISK_TOLERANCE_LEVELS:
-                    print(f"Invalid risk tolerance. Using 'Medium' as default.")
-                    risk_tolerance = 'Medium'
-                else:
-                    risk_tolerance = risk_tolerance.capitalize()
-                    
-                strategic_priorities = input("Strategic Priorities: ").strip()
-                strategic_constraints = input("Strategic Constraints: ").strip()
-                execution_priorities = input("Execution Priorities: ").strip()
-                execution_constraints = input("Execution Constraints: ").strip()
+                risk_tolerance = Prompt.ask(
+                    "Risk Tolerance", 
+                    choices=["High", "Medium", "Low"], 
+                    default="Medium"
+                )
+                
+                strategic_priorities = Prompt.ask("Strategic Priorities")
+                strategic_constraints = Prompt.ask("Strategic Constraints")
+                execution_priorities = Prompt.ask("Execution Priorities")
+                execution_constraints = Prompt.ask("Execution Constraints")
                 
                 strategic_inputs = {
                     'risk_tolerance': risk_tolerance,
@@ -287,77 +396,111 @@ def run_interactive_mode(rag_system, db, retriever):
                     'execution_constraints': execution_constraints
                 }
                 
-                print("\n⏳ Generating strategy recommendation...")
-                start_time = time.time()
-                recommendation = rag_system.generate_strategy_recommendation(strategic_inputs)
-                elapsed_time = time.time() - start_time
+                console.print("\n[bold cyan]⏳ Generating strategy recommendation...[/bold cyan]")
                 
-                print(f"\n📊 STRATEGY RECOMMENDATION (generated in {elapsed_time:.2f} seconds)")
-                print("=" * 70)
-                print(recommendation)
-                print("=" * 70)
+                with Progress() as progress:
+                    gen_task = progress.add_task("[green]Analyzing business data...", total=100)
+                    
+                    # Update progress periodically to show activity
+                    for i in range(1, 5):
+                        time.sleep(0.5)
+                        progress.update(gen_task, completed=i * 20)
+                        progress.update(gen_task, description=f"[green]Phase {i}: {['Analyzing data', 'Evaluating context', 'Formulating strategy', 'Finalizing recommendations'][i-1]}...")
+                    
+                    start_time = time.time()
+                    recommendation = rag_system.generate_strategy_recommendation(strategic_inputs)
+                    elapsed_time = time.time() - start_time
+                    
+                    # Complete the progress
+                    progress.update(gen_task, completed=100)
+                
+                console.print(f"\n[bold green]📊 STRATEGY RECOMMENDATION[/bold green] [dim](generated in {elapsed_time:.2f} seconds)[/dim]")
+                
+                recommendation_panel = Panel(
+                    recommendation,
+                    border_style="green",
+                    title="QmiracTM Strategy Recommendation",
+                    subtitle=f"Risk Tolerance: {risk_tolerance}"
+                )
+                console.print(recommendation_panel)
                 
                 # Save strategy to file
-                save_response = input("\nSave this strategy recommendation to file? (y/n): ").strip().lower()
-                if save_response == 'y':
-                    timestamp = time.strftime("%Y%m%d_%H%M%S")
-                    filename = f"strategy_recommendation_{timestamp}.txt"
+                save_response = Confirm.ask("\nSave this strategy recommendation to file?")
+                if save_response:
+                    timestamp = time.time()
+                    formatted_timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    filename = f"strategy_recommendation_{formatted_timestamp}.txt"
+                    
                     with open(filename, 'w') as f:
                         f.write(recommendation)
-                    print(f"Strategy saved to {filename}")
+                    
+                    console.print(f"[green]Strategy saved to {filename}[/green]")
                 
                 # Get feedback
-                feedback = input("\nWould you like to provide feedback on this strategy? (y/n): ").strip().lower()
-                if feedback == 'y':
-                    rating = input("Rating (1-5 stars): ").strip()
+                feedback = Confirm.ask("\nWould you like to provide feedback on this strategy?")
+                if feedback:
+                    rating = Prompt.ask("Rating (1-5 stars)", choices=["1", "2", "3", "4", "5"])
+                    feedback_text = Prompt.ask("Comments (optional)")
+                    
                     try:
                         rating = int(rating)
-                        if rating < 1 or rating > 5:
-                            rating = None
-                    except ValueError:
-                        rating = None
-                        
-                    feedback_text = input("Comments (optional): ").strip()
-                    if rating or feedback_text:
                         db.store_feedback("Strategy generation", recommendation, feedback_text, rating)
-                        print("Thank you for your feedback!")
+                        console.print("[green]Thank you for your feedback![/green]")
+                    except ValueError:
+                        console.print("[yellow]Invalid rating. Feedback not stored.[/yellow]")
             else:
                 # Process regular query
-                print("\n⏳ Processing query...")
-                start_time = time.time()
-                response = rag_system.process_query(user_input)
-                elapsed_time = time.time() - start_time
+                console.print("\n[bold cyan]⏳ Processing query...[/bold cyan]")
                 
-                print(f"\n🤖 Response (generated in {elapsed_time:.2f} seconds):")
-                print("-" * 70)
-                print(response)
-                print("-" * 70)
+                with Progress() as progress:
+                    query_task = progress.add_task("[green]Thinking...", total=100)
+                    
+                    # Update progress periodically to show activity
+                    for i in range(1, 5):
+                        time.sleep(0.3)
+                        progress.update(query_task, completed=i * 20)
+                    
+                    start_time = time.time()
+                    response = rag_system.process_query(user_input)
+                    elapsed_time = time.time() - start_time
+                    
+                    # Complete the progress
+                    progress.update(query_task, completed=100)
+                
+                response_panel = Panel(
+                    response,
+                    border_style="blue",
+                    title="🤖 QmiracTM AI Response",
+                    subtitle=f"Generated in {elapsed_time:.2f} seconds"
+                )
+                console.print(response_panel)
                 
                 # Get feedback (optional)
-                feedback_response = input("\nWas this response helpful? (y/n): ").strip().lower()
-                if feedback_response == 'n':
-                    feedback = input("What could be improved? (optional): ").strip()
+                feedback_response = Confirm.ask("\nWas this response helpful?")
+                if not feedback_response:
+                    feedback = Prompt.ask("What could be improved? (optional)")
                     rating = 2  # Below average rating
                     if feedback:
                         db.store_feedback(user_input, response, feedback, rating)
-                        print("Thank you for your feedback!")
-                elif feedback_response == 'y':
-                    rating = input("How would you rate this response (1-5)? ").strip()
+                        console.print("[green]Thank you for your feedback![/green]")
+                else:
+                    rating_str = Prompt.ask("How would you rate this response (1-5)?", choices=["1", "2", "3", "4", "5"])
                     try:
-                        rating = int(rating)
-                        if 1 <= rating <= 5:
-                            db.store_feedback(user_input, response, "Helpful", rating)
-                            print("Thank you for your feedback!")
+                        rating = int(rating_str)
+                        db.store_feedback(user_input, response, "Helpful", rating)
+                        console.print("[green]Thank you for your feedback![/green]")
                     except ValueError:
-                        pass
+                        console.print("[yellow]Invalid rating. Feedback not stored.[/yellow]")
                 
         except KeyboardInterrupt:
-            print("\nInterrupted by user.")
+            console.print("\n[yellow]Interrupted by user.[/yellow]")
             break
         except Exception as e:
-            print(f"\nError processing query: {e}")
+            console.print(f"\n[bold red]Error processing query:[/bold red] {e}")
+            import traceback
+            console.print(traceback.format_exc())
     
-    print("\nQmiracTM AI Assistant shutting down.")
+    console.print("\n[bold blue]QmiracTM AI Assistant shutting down.[/bold blue]")
 
 def run_demo_mode(rag_system):
     """Run a demonstration with sample queries."""
@@ -369,37 +512,53 @@ def run_demo_mode(rag_system):
         "What's the relationship between risk tolerance and strategic planning?"
     ]
     
-    print("\n" + "="*70)
-    print(f"{'QmiracTM AI Assistant Demo Mode':^70}")
-    print("="*70)
-    print("Running demonstration with sample business strategy queries.")
-    print("Press Ctrl+C at any time to exit the demo.")
+    width = shutil.get_terminal_size().columns
+    
+    console.print("\n" + "=" * width)
+    console.print("[bold blue]QmiracTM AI Assistant Demo Mode[/bold blue]", justify="center")
+    console.print("=" * width)
+    console.print("[dim]Running demonstration with sample business strategy queries.[/dim]")
+    console.print("[yellow]Press Ctrl+C at any time to exit the demo.[/yellow]")
     
     try:
         for i, query in enumerate(demo_queries):
-            print(f"\n\nDemo Query {i+1}/{len(demo_queries)}:")
-            print(f"👤 {query}")
-            print("\n⏳ Processing...")
+            console.print(f"\n\n[bold]Demo Query {i+1}/{len(demo_queries)}:[/bold]")
+            console.print(f"[bold cyan]👤 {query}[/bold cyan]")
+            console.print("\n[bold cyan]⏳ Processing...[/bold cyan]")
             
-            start_time = time.time()
-            response = rag_system.process_query(query)
-            elapsed_time = time.time() - start_time
+            with Progress() as progress:
+                query_task = progress.add_task("[green]Thinking...", total=100)
+                
+                # Update progress periodically to show activity
+                for j in range(1, 5):
+                    time.sleep(0.3)
+                    progress.update(query_task, completed=j * 20)
+                
+                start_time = time.time()
+                response = rag_system.process_query(query)
+                elapsed_time = time.time() - start_time
+                
+                # Complete the progress
+                progress.update(query_task, completed=100)
             
-            print(f"\n🤖 Response (generated in {elapsed_time:.2f} seconds):")
-            print("-" * 70)
-            print(response)
-            print("-" * 70)
+            response_panel = Panel(
+                response,
+                border_style="blue", 
+                title="🤖 QmiracTM AI Response",
+                subtitle=f"Generated in {elapsed_time:.2f} seconds"
+            )
+            console.print(response_panel)
             
             # Pause between queries
             if i < len(demo_queries) - 1:
-                input("\nPress Enter to continue to the next query...")
+                Prompt.ask("\n[dim]Press Enter to continue to the next query...[/dim]")
     
         # Demo strategy generation
-        print("\n\n" + "="*70)
-        print(f"{'Demo Strategy Generation':^70}")
-        print("="*70)
+        console.print("\n\n" + "=" * width)
+        console.print("[bold blue]Demo Strategy Generation[/bold blue]", justify="center")
+        console.print("=" * width)
         
-        print("\nGenerating a sample business strategy with default inputs...")
+        console.print("\n[dim]Generating a sample business strategy with default inputs...[/dim]")
         strategic_inputs = {
             'risk_tolerance': 'Medium',
             'strategic_priorities': 'Market expansion, product innovation, customer retention',
@@ -408,23 +567,52 @@ def run_demo_mode(rag_system):
             'execution_constraints': 'Resource limitations, regulatory requirements'
         }
         
-        print("\n⏳ Generating strategy recommendation...")
-        start_time = time.time()
-        recommendation = rag_system.generate_strategy_recommendation(strategic_inputs)
-        elapsed_time = time.time() - start_time
+        # Display the inputs in a nice table
+        inputs_table = Table(title="Strategic Inputs", show_header=True, header_style="bold magenta")
+        inputs_table.add_column("Parameter", style="cyan")
+        inputs_table.add_column("Value", style="green")
         
-        print(f"\n📊 STRATEGY RECOMMENDATION (generated in {elapsed_time:.2f} seconds)")
-        print("=" * 70)
-        print(recommendation)
-        print("=" * 70)
+        for key, value in strategic_inputs.items():
+            inputs_table.add_row(key.replace('_', ' ').title(), value)
         
-        print("\nDemo completed! Switching to interactive mode...\n")
-        run_interactive_mode(rag_system, None, None)
+        console.print(inputs_table)
+        
+        console.print("\n[bold cyan]⏳ Generating strategy recommendation...[/bold cyan]")
+        
+        with Progress() as progress:
+            gen_task = progress.add_task("[green]Analyzing business data...", total=100)
+            
+            # Update progress periodically to show activity
+            for i in range(1, 5):
+                time.sleep(0.5)
+                progress.update(gen_task, completed=i * 20)
+                progress.update(gen_task, description=f"[green]Phase {i}: {['Analyzing data', 'Evaluating context', 'Formulating strategy', 'Finalizing recommendations'][i-1]}...")
+            
+            start_time = time.time()
+            recommendation = rag_system.generate_strategy_recommendation(strategic_inputs)
+            elapsed_time = time.time() - start_time
+            
+            # Complete the progress
+            progress.update(gen_task, completed=100)
+        
+        recommendation_panel = Panel(
+            recommendation,
+            border_style="green",
+            title="📊 QmiracTM Strategy Recommendation",
+            subtitle=f"Generated in {elapsed_time:.2f} seconds"
+        )
+        console.print(recommendation_panel)
+        
+        console.print("\n[bold green]Demo completed![/bold green] Switching to interactive mode...\n")
+        if Confirm.ask("Would you like to continue to interactive mode?"):
+            run_interactive_mode(rag_system, None, None)
         
     except KeyboardInterrupt:
-        print("\nDemo interrupted by user.")
+        console.print("\n[yellow]Demo interrupted by user.[/yellow]")
     except Exception as e:
-        print(f"\nError in demo mode: {e}")
+        console.print(f"\n[bold red]Error in demo mode:[/bold red] {e}")
+        import traceback
+        console.print(traceback.format_exc())
 
 if __name__ == "__main__":
     main()
