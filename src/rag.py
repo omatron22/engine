@@ -16,16 +16,6 @@ class RAGSystem:
         self.retriever = retriever
         self.llm = llm_manager
         
-        # Create enhanced LLM integration if available
-        try:
-            from src.llm_integration import EnhancedLLMIntegration
-            self.enhanced_llm = EnhancedLLMIntegration(llm_manager, retriever)
-            self.has_enhanced_llm = True
-            print("Enhanced LLM integration enabled")
-        except ImportError:
-            self.has_enhanced_llm = False
-            print("Using standard LLM integration")
-        
     def process_query(self, query, additional_context=None):
         """
         Process a query through the RAG pipeline.
@@ -43,22 +33,6 @@ class RAGSystem:
         print(f"Processing query: '{query}'")
         start_time = time.time()
         
-        # Use enhanced LLM integration if available
-        if hasattr(self, 'has_enhanced_llm') and self.has_enhanced_llm:
-            try:
-                response = self.enhanced_llm.process_query(query, additional_context)
-                
-                # Store the interaction for learning
-                self.db.store_feedback(query, response)
-                
-                total_time = time.time() - start_time
-                print(f"Query processed with enhanced LLM in {total_time:.2f} seconds")
-                return response
-            except Exception as e:
-                print(f"Enhanced LLM failed: {e}, falling back to standard")
-                # Fall through to standard implementation
-        
-        # Standard implementation (if enhanced not available or fails)
         # Retrieve relevant documents
         relevant_docs = self.retriever.get_relevant_documents(query)
         
@@ -158,19 +132,6 @@ class RAGSystem:
             execution_constraints
         )
         
-        # Use enhanced LLM integration if available
-        if hasattr(self, 'has_enhanced_llm') and self.has_enhanced_llm:
-            try:
-                recommendation = self.enhanced_llm.generate_strategy_recommendation(strategic_inputs)
-                
-                total_time = time.time() - start_time
-                print(f"Strategy recommendation generated with enhanced LLM in {total_time:.2f} seconds")
-                return recommendation
-            except Exception as e:
-                print(f"Enhanced LLM failed: {e}, falling back to standard")
-                # Fall through to standard implementation
-        
-        # Standard implementation (if enhanced not available or fails)
         # Retrieve strategy documents
         strategy_docs = self.retriever.get_relevant_documents(
             "strategic assessment market position SWOT business strategy", 
@@ -202,23 +163,18 @@ class RAGSystem:
         
         context = "\n\n".join(context_parts)
         
-        # Try to use system prompts module if available for better prompting
-        try:
-            from src.system_prompts import get_system_prompt
-            system_prompt = get_system_prompt("strategy")
-        except ImportError:
-            # Fall back to default prompt
-            system_prompt = """
-            You are the QmiracTM Strategic Recommendation Engine, a sophisticated AI system for business strategy development.
-            Your task is to synthesize information from strategic assessments and user inputs to generate a comprehensive
-            strategy recommendation. Structure your response in clear sections covering strategic direction, key initiatives,
-            risk assessment, implementation roadmap, and success metrics. Base your recommendations on the actual data provided
-            and avoid making unfounded assumptions. Your output should be professional, insightful, and actionable.
-            
-            Consider the company's risk tolerance level carefully when making recommendations. For high risk tolerance,
-            recommend more aggressive strategies with higher potential returns. For low risk tolerance, focus on more
-            conservative approaches with steady, reliable outcomes. For medium risk tolerance, balance opportunity and caution.
-            """
+        # System prompt for strategy generation
+        system_prompt = """
+        You are the QmiracTM Strategic Recommendation Engine, a sophisticated AI system for business strategy development.
+        Your task is to synthesize information from strategic assessments and user inputs to generate a comprehensive
+        strategy recommendation. Structure your response in clear sections covering strategic direction, key initiatives,
+        risk assessment, implementation roadmap, and success metrics. Base your recommendations on the actual data provided
+        and avoid making unfounded assumptions. Your output should be professional, insightful, and actionable.
+        
+        Consider the company's risk tolerance level carefully when making recommendations. For high risk tolerance,
+        recommend more aggressive strategies with higher potential returns. For low risk tolerance, focus on more
+        conservative approaches with steady, reliable outcomes. For medium risk tolerance, balance opportunity and caution.
+        """
         
         prompt = f"""
         Based on the following strategic assessment data and user inputs, develop a comprehensive 

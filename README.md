@@ -4,18 +4,26 @@
 
 ## Overview
 
-QmiracTM AI-Driven Knowledge Base is an intelligent system that dynamically gathers, organizes, and synthesizes business data to generate strategic scenarios and recommendations. This system utilizes a state-of-the-art Retrieval-Augmented Generation (RAG) approach, running entirely offline to ensure data security and privacy.
+QmiracTM AI-Driven Knowledge Base is an intelligent system that dynamically gathers, organizes, and synthesizes business data to generate strategic scenarios and actionable recommendations. This system utilizes a state-of-the-art Retrieval-Augmented Generation (RAG) approach, running entirely offline to ensure data security and privacy.
 
-The system analyzes your business's strategic assessment data and generates tailored recommendations based on specified risk tolerance, priorities, and constraints.
+The system analyzes your business's strategic assessment data and generates tailored recommendations based on your specified risk tolerance, strategic priorities, and constraints.
 
-## Features
+## Key Features
 
 - **Self-Hosted & Offline**: All processing happens locally - no data leaves your system
-- **Intelligent Document Processing**: Ingests PDF, CSV, and other business strategy documents
-- **Semantic Search**: Find relevant information quickly across your business data
+- **Intelligent Document Processing**: Automatically ingests PDFs, CSVs, and other business strategy documents
+- **Semantic Search**: Find relevant information quickly across your business data 
 - **Strategic Analysis**: Generate comprehensive business strategy recommendations
 - **Customizable Outputs**: Export recommendations as formatted PDF documents
 - **Interactive Interface**: User-friendly command-line and web interfaces
+
+## How It Works
+
+1. **Data Ingestion**: Upload your strategic assessment documents, financial data, market analyses, and other business data
+2. **Intelligent Processing**: The system processes and indexes your data using advanced embedding techniques
+3. **Strategic Inputs**: Specify your risk tolerance, strategic priorities, and constraints
+4. **AI-Powered Analysis**: The system analyzes your data and inputs to generate comprehensive strategy recommendations
+5. **Output Generation**: Receive detailed strategy recommendations that can be exported as PDF documents
 
 ## Requirements
 
@@ -75,7 +83,7 @@ There are multiple ways to run the application:
 python app.py
 ```
 
-2. **Demo Mode**:
+2. **Demo Mode** (runs with sample data and queries):
 
 ```bash
 python app.py --demo
@@ -114,13 +122,26 @@ The system will prompt you for the following inputs:
 
 Based on these inputs and your loaded business data, the system will generate a comprehensive strategy recommendation.
 
-## Integrating with FlutterFlow
+## Architecture
 
-This system is designed to be integrated with FlutterFlow applications. The core RAG functionality can be exposed through:
+The QmiracTM AI-Driven Knowledge Base consists of several key components:
 
-1. **REST API**: The web interface can be extended to provide API endpoints for FlutterFlow
-2. **Direct Database Integration**: The SQLite database can be shared with FlutterFlow
-3. **Code Export**: Core functionality can be exported as modules for integration
+- **Document Loader**: Processes PDFs, CSVs, and other documents
+- **Embedding Generator**: Creates vector embeddings for document chunks
+- **Retriever**: Finds relevant information based on queries
+- **LLM Manager**: Interacts with Ollama for text generation
+- **RAG System**: Coordinates the entire Retrieval-Augmented Generation process
+- **Output Generator**: Creates formatted PDF strategy recommendations
+
+## Sample Data
+
+The repository includes sample data tables for demonstration purposes:
+
+- Financial metrics (revenue, profit, margins)
+- Market assessment scores
+- Competitive analysis
+- SWOT analysis components
+- Operational metrics
 
 ## Troubleshooting
 
@@ -132,3 +153,7 @@ This system is designed to be integrated with FlutterFlow applications. The core
 ## License
 
 Proprietary - QmiracTM Business Intelligence Systems
+
+---
+
+**QmiracTM AI-Driven Knowledge Base** - Transforming Business Data into Strategic Intelligence

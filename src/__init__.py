@@ -70,13 +70,7 @@ def create_knowledge_base(db_path=DB_PATH):
     document_loader = DocumentLoader(db)
     retriever = Retriever(db, embedding_generator)
     
-    # Initialize enhanced components
-    try:
-        from .llm_integration import EnhancedLLMIntegration
-        # Pass enhanced integration to RAG system
-        rag_system = RAGSystem(db, retriever, llm_manager)  # Will auto-use enhanced LLM
-    except ImportError:
-        # Fall back to standard RAG
-        rag_system = RAGSystem(db, retriever, llm_manager)
+    # Initialize RAG system
+    rag_system = RAGSystem(db, retriever, llm_manager)
     
     return db, document_loader, embedding_generator, retriever, llm_manager, rag_system
