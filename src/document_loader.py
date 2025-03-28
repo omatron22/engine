@@ -24,7 +24,76 @@ class DocumentLoader:
             '.json': self.load_json,
             '.txt': self.load_text
         }
+    
+    def process_large_document(self, file_path, max_size_mb=10, chunk_size_mb=5):
+        """Process unusually large documents by splitting them first."""
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
         
+        if file_size_mb <= max_size_mb:
+            # Normal processing for regular-sized documents
+            return self.load_pdf(file_path) if file_path.endswith('.pdf') else self.load_csv(file_path)
+        
+        # For large documents, split and process in chunks
+        print(f"Large document detected ({file_size_mb:.2f}MB), processing in chunks")
+        
+        # PDF specific implementation
+        if file_path.endswith('.pdf'):
+            from PyPDF2 import PdfReader, PdfWriter
+            reader = PdfReader(file_path)
+            total_pages = len(reader.pages)
+            
+            # Estimate pages per chunk
+            pages_per_chunk = max(1, int(total_pages * (chunk_size_mb / file_size_mb)))
+            
+            results = []
+            for i in range(0, total_pages, pages_per_chunk):
+                chunk_end = min(i + pages_per_chunk, total_pages)
+                print(f"Processing PDF chunk: pages {i+1}-{chunk_end} of {total_pages}")
+                
+                # Create temporary PDF with just these pages
+                temp_pdf = f"temp_chunk_{i}.pdf"
+                writer = PdfWriter()
+                
+                for page_num in range(i, chunk_end):
+                    writer.add_page(reader.pages[page_num])
+                    
+                with open(temp_pdf, 'wb') as f:
+                    writer.write(f)
+                
+                # Process this chunk
+                chunk_result = self.load_pdf(temp_pdf)
+                if chunk_result:
+                    results.append(chunk_result)
+                
+                # Clean up
+                os.remove(temp_pdf)
+                
+            return results
+        
+        # CSV specific implementation
+        elif file_path.endswith('.csv'):
+            import pandas as pd
+            
+            # Determine chunk size in rows
+            df = pd.read_csv(file_path, nrows=1)
+            bytes_per_row = os.path.getsize(file_path) / len(pd.read_csv(file_path))
+            rows_per_chunk = int((chunk_size_mb * 1024 * 1024) / bytes_per_row)
+            
+            results = []
+            for chunk in pd.read_csv(file_path, chunksize=rows_per_chunk):
+                temp_csv = f"temp_chunk.csv"
+                chunk.to_csv(temp_csv, index=False)
+                
+                # Process this chunk
+                chunk_result = self.load_csv(temp_csv)
+                if chunk_result:
+                    results.append(chunk_result)
+                
+                # Clean up
+                os.remove(temp_csv)
+                
+            return results
+            
     def load_pdf(self, pdf_path: str) -> Optional[Dict[str, Any]]:
         """
         Load and process a PDF file.

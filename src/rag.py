@@ -1,4 +1,6 @@
 # src/rag.py
+
+import psutil
 import time
 from typing import Dict, List, Any, Optional
 
@@ -15,7 +17,22 @@ class RAGSystem:
         self.db = db
         self.retriever = retriever
         self.llm = llm_manager
+
+    def optimize_memory_usage(self, query, retrieved_docs):
+        """Optimize memory usage when processing large retrievals."""
+        # Limit context size based on available system memory
+        available_memory = psutil.virtual_memory().available / (1024 * 1024)
         
+        # Adjust context size based on available memory
+        if available_memory < 500:  # Less than 500MB available
+            # Reduce context size dramatically
+            retrieved_docs = retrieved_docs[:3]
+        elif available_memory < 1000:  # Less than 1GB available
+            # Moderate context reduction
+            retrieved_docs = retrieved_docs[:5]
+        
+        return retrieved_docs
+    
     def process_query(self, query, additional_context=None):
         """
         Process a query through the RAG pipeline.
@@ -35,6 +52,9 @@ class RAGSystem:
         
         # Retrieve relevant documents
         relevant_docs = self.retriever.get_relevant_documents(query)
+        
+        # Apply memory optimization after retrieving documents
+        relevant_docs = self.optimize_memory_usage(query, relevant_docs)
         
         if not relevant_docs:
             return (
@@ -150,6 +170,9 @@ class RAGSystem:
         # Get just the most relevant docs
         all_docs.sort(key=lambda x: x.get('similarity', 0), reverse=True)
         context_docs = all_docs[:10]
+        
+        # Apply memory optimization to context docs if necessary
+        context_docs = self.optimize_memory_usage("strategy generation", context_docs)
         
         # Format context with document information
         context_parts = []

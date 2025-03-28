@@ -124,6 +124,18 @@ class LLMManager:
             })
             
         return model_list
+    
+    def select_model_for_query(self, query, strategic_context=None):
+        """Select appropriate model based on query complexity and context."""
+        # Simple queries can use lighter models
+        if len(query) < 100 and not strategic_context:
+            return "llama3"  # Lighter model
+        # Complex strategy generation requires more reasoning power
+        elif "strategy" in query.lower() or strategic_context:
+            return "deepseek-coder:reasoning"
+        # Default to intermediate model for most queries
+        else:
+            return DEFAULT_MODEL
             
     def generate_response(self, prompt: str, system_prompt: Optional[str] = None, 
                          model: Optional[str] = None, temperature: float = 0.7, 
@@ -143,7 +155,7 @@ class LLMManager:
             Generated response or None if an error occurred
         """
         if model is None:
-            model = DEFAULT_MODEL
+            model = self.select_model_for_query(prompt)
         
         # Check if Ollama is running
         if not self.check_ollama_running():
@@ -209,7 +221,7 @@ class LLMManager:
                     return None
         
         return None
-    
+        
     def generate_reasoning_response(self, prompt: str, system_prompt: Optional[str] = None,
                                    max_tokens: int = 4096) -> Optional[str]:
         """
