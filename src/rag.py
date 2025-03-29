@@ -247,7 +247,7 @@ class RAGSystem:
         recommendation = self.llm.generate_response(
             prompt=prompt,
             system_prompt=system_prompt,
-            model="deepseek-coder:reasoning",  # Use reasoning-optimized model
+            model="deepseek-r1:latest",  # Use reasoning-optimized model
             temperature=0.5,                   # Lower temperature for more focused output
             max_tokens=4096                    # More tokens for comprehensive strategy
         )

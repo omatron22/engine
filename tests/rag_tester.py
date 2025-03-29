@@ -5,15 +5,23 @@ QmiracTM AI-Driven Knowledge Base Testing Framework
 A framework for testing the performance and accuracy of the RAG system.
 """
 import os
+import sys
 import time
 import json
 import argparse
 from pathlib import Path
+
+# Add the parent directory to sys.path so Python can find the src module
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+print(f"Added to Python path: {parent_dir}")
+
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress
 
-# Import the system components
+# Now we can import from src
 from src.db import Database
 from src.document_loader import DocumentLoader
 from src.embeddings import EmbeddingGenerator
@@ -135,7 +143,7 @@ class RAGTester:
                 start_time = time.time()
                 response = self.llm_manager.generate_response(
                     prompt=f"Based on this context:\n{context}\n\nAnswer this query: {query}",
-                    model="deepseek-coder:reasoning"
+                    model="deepseek-r1:latest"
                 )
                 elapsed_time = time.time() - start_time
                 
@@ -213,7 +221,7 @@ class RAGTester:
             f"{self.metrics['generation']['avg_time']:.2f}s",
             f"{self.metrics['generation']['min_time']:.2f}s",
             f"{self.metrics['generation']['max_time']:.2f}s",
-            "Using deepseek-coder:reasoning"
+            "Using deepseek-r1:latest"
         )
         
         # Add end-to-end metrics

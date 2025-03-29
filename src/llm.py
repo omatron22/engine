@@ -129,10 +129,10 @@ class LLMManager:
         """Select appropriate model based on query complexity and context."""
         # Simple queries can use lighter models
         if len(query) < 100 and not strategic_context:
-            return "llama3"  # Lighter model
+            return "llama3:8b"  # Lighter model
         # Complex strategy generation requires more reasoning power
         elif "strategy" in query.lower() or strategic_context:
-            return "deepseek-coder:reasoning"
+            return "deepseek-r1:latest"
         # Default to intermediate model for most queries
         else:
             return DEFAULT_MODEL

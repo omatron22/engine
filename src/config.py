@@ -24,10 +24,10 @@ for directory in [PDF_DIR, CSV_DIR, JSON_DIR, TXT_DIR, os.path.dirname(DB_PATH),
 
 # LLM settings
 OLLAMA_BASE_URL = "http://localhost:11434"
-DEFAULT_MODEL = "deepseek-coder:reasoning"  # Default model for general tasks
-REASONING_MODEL = "deepseek-coder:reasoning"  # Model optimized for reasoning tasks
-STRATEGY_MODEL = "deepseek-coder:reasoning"  # Model optimized for strategy generation
-FALLBACK_MODEL = "llama3"  # Fallback model if primary not available
+DEFAULT_MODEL = "deepseek-r1:latest"  # Default model for general tasks
+REASONING_MODEL = "deepseek-r1:latest"  # Model optimized for reasoning tasks
+STRATEGY_MODEL = "deepseek-r1:latest"  # Model optimized for strategy generation
+FALLBACK_MODEL = "llama3:8b"  # Fallback model if primary not available
 
 # Embedding model settings
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # SentenceTransformers model
